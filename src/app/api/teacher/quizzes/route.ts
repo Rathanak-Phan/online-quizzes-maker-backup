@@ -1,7 +1,7 @@
 // src/app/api/teacher/quizzes/route.ts
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import { Quiz } from "@/lib/models/Quiz";
+import Quiz from "@/lib/models/Quiz";
 import { verifyToken } from "@/lib/jwt";
 
 /* ======================

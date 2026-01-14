@@ -97,16 +97,16 @@ export default function Header() {
           <Link href="/student/classes" className="hover:text-blue-600">
             Classes
           </Link>
-          <Link href="/student/categories" className="hover:text-blue-600">
-            Categories
-          </Link>
-          <Link href="/student/leaderboard" className="hover:text-blue-600">
-            Leaderboard
+          <Link href="/student/dashboard" className="hover:text-blue-600">
+            Dashboard
           </Link>
         </nav>
 
         {/* Desktop Profile / Auth Buttons */}
         <div className="hidden md:flex items-center gap-4 relative dropdown">
+          <Link href="/teacher" className="hover:text-blue-600">
+            For teacher
+          </Link>
           <Notification />
 
           {!user ? (
@@ -410,11 +410,8 @@ export default function Header() {
             <Link href="/student/classes" className="hover:text-blue-600">
               Classes
             </Link>
-            <Link href="/student/categories" className="hover:text-blue-600">
-              Categories
-            </Link>
-            <Link href="/student/leaderboard" className="hover:text-blue-600">
-              Leaderboard
+            <Link href="/student/dashboard" className="hover:text-blue-600">
+              Dashboard
             </Link>
           </nav>
 

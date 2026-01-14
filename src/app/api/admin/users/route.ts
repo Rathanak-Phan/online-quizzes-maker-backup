@@ -1,3 +1,4 @@
+// src/app/api/admin/users/route.ts
 import connectDB from "@/lib/mongodb";
 import User from "@/lib/models/User";
 import { NextResponse } from "next/server";
@@ -5,7 +6,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     await connectDB();
-    const users = await User.find();
+    const users = await User.find().select("-password");
     return NextResponse.json({ users });
   } catch (error) {
     console.error("Fetch users error:", error);

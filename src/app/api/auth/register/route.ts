@@ -10,6 +10,10 @@ export async function POST(req: NextRequest) {
     await connectDB(); // connect to MongoDB
 
     const { name, email, password, role } = await req.json();
+
+    // Normalize role to match enum in Mongoose
+    const normalizedRole = role.toLowerCase(); // 'teacher', 'user', or 'admin'
+
     const status = normalizedRole === "teacher" ? "pending" : "active";
     const validated = normalizedRole === "teacher" ? false : true;
 
@@ -20,9 +24,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Normalize role to match enum in Mongoose
-    const normalizedRole = role.toLowerCase(); // 'teacher', 'user', or 'admin'
 
     // Check enum validity
     const validRoles = ["admin", "teacher", "user"];
