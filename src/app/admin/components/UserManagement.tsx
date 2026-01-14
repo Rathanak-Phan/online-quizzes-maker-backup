@@ -174,9 +174,12 @@ export default function UserManagement() {
     (u) => u.status === "pending"
   ).length;
 
-  // Pending teachers (non-admins)
-  const pendingTeachers = nonAdminUsers.filter(
+  const pendingTeachers = users.filter(
     (u) => u.role === "teacher" && u.status === "pending"
+  );
+
+  const approvedTeachers = users.filter(
+    (u) => u.role === "teacher" && u.status === "active"
   );
 
   return (
