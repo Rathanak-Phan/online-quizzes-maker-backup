@@ -1,4 +1,3 @@
-// app/teacher/classes/page.tsx (improved UX)
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -23,6 +22,7 @@ import {
   Eye,
   UserPlus,
   Settings,
+  AlertCircle,
 } from "lucide-react";
 
 interface Class {
@@ -30,7 +30,7 @@ interface Class {
   name: string;
   code: string;
   type: "public" | "private";
-  students: number;
+  studentCount: number; // Recommended: use virtual from model
   inviteLink?: string;
   createdAt?: string;
   subject?: string;
@@ -44,22 +44,64 @@ export default function ClassesPage() {
   const [error, setError] = useState("");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<
-    "all" | "public" | "private"
-  >("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "public" | "private">("all");
   const [showFilters, setShowFilters] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const fetchClasses = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const res = await fetch("/api/teacher/classes", {
+        credentials: "include",
+        cache: "no-store", // Force fresh data
+      });
+
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          window.location.href = "/login?redirect=/teacher/classes";
+          return;
+        }
+        throw new Error("Failed to load classes");
+      }
+
+      const data = await res.json();
+      setClasses(data.classes || []);
+    } catch (err: any) {
+      console.error("Fetch error:", err);
+      setError(err.message || "Failed to load classes. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch on mount + when page becomes visible again (after create redirect)
   useEffect(() => {
     fetchClasses();
+
+    // Re-fetch when user returns to this tab/page
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchClasses();
+      }
+    };
+
+    const handleFocus = () => fetchClasses();
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
+  // Close dropdown outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target as Node)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpenDropdown(null);
       }
     };
@@ -67,41 +109,26 @@ export default function ClassesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchClasses = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const res = await fetch("/api/teacher/classes"); // cookies sent automatically
-      if (!res.ok) throw new Error("Failed to load classes");
-
-      const data = await res.json();
-      setClasses(data.classes || []);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load classes. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const deleteClass = async (classId: string) => {
+    if (!confirm("Are you sure you want to delete this class?")) return;
+
     try {
       const res = await fetch(`/api/teacher/classes/${classId}`, {
         method: "DELETE",
+        credentials: "include",
       });
+
       const data = await res.json();
 
       if (data.success) {
         setClasses((prev) => prev.filter((c) => c._id !== classId));
         alert("Class deleted successfully!");
-        fetchClasses();
       } else {
-        alert("Error: " + data.error);
+        alert("Error: " + (data.error || "Failed to delete"));
       }
     } catch (err) {
       console.error(err);
-      alert("Something went wrong while deleting the class.");
+      alert("Something went wrong while deleting.");
     }
   };
 
@@ -125,6 +152,7 @@ export default function ClassesPage() {
     return matchesSearch && matchesFilter;
   });
 
+  // Loading UI
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center">
@@ -141,22 +169,17 @@ export default function ClassesPage() {
     );
   }
 
+  // Error UI
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 flex items-center justify-center px-4">
         <div className="text-center max-w-md p-8 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-gray-200/50">
-          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">!</span>
-            </div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Something went wrong
-          </h2>
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Something went wrong</h2>
           <p className="text-lg text-gray-600 mb-8">{error}</p>
           <button
             onClick={fetchClasses}
-            className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-lg hover:shadow-xl active:scale-95"
+            className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl active:scale-95"
           >
             Try Again
           </button>
@@ -181,8 +204,7 @@ export default function ClassesPage() {
                 )}
               </h1>
               <p className="text-lg text-gray-600 max-w-2xl">
-                Manage your classes, invite students, and track progress in one
-                place
+                Manage your classes, invite students, and track progress in one place
               </p>
             </div>
             <Link
@@ -198,7 +220,7 @@ export default function ClassesPage() {
           </div>
         </div>
 
-        {/* Stats & Search Bar */}
+        {/* Stats & Search */}
         <div className="mb-10">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -207,39 +229,36 @@ export default function ClassesPage() {
                   <Users className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Total Students
-                  </p>
+                  <p className="text-sm text-gray-600 font-medium">Total Students</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {classes.reduce((acc, c) => acc + c.students, 0)}
+                    {classes.reduce((acc, c) => acc + (c.studentCount || 0), 0)}
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* Public / Private stats cards remain the same */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 shadow-sm hover:shadow-md transition-shadow duration-300">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-green-100 rounded-xl">
                   <Globe className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Public Classes
-                  </p>
+                  <p className="text-sm text-gray-600 font-medium">Public Classes</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {classes.filter((c) => c.type === "public").length}
                   </p>
                 </div>
               </div>
             </div>
+
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 shadow-sm hover:shadow-md transition-shadow duration-300">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-amber-100 rounded-xl">
                   <Lock className="w-6 h-6 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 font-medium">
-                    Private Classes
-                  </p>
+                  <p className="text-sm text-gray-600 font-medium">Private Classes</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {classes.filter((c) => c.type === "private").length}
                   </p>
@@ -248,6 +267,7 @@ export default function ClassesPage() {
             </div>
           </div>
 
+          {/* Search & Filter - unchanged */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -259,24 +279,20 @@ export default function ClassesPage() {
                 className="w-full pl-12 pr-4 py-4 text-base bg-white/80 backdrop-blur-sm border border-gray-200/50 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-300"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-5 py-3 bg-white/80 backdrop-blur-sm border border-gray-200/50 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
-              >
-                <Filter className="w-4 h-4" />
-                Filter
-              </button>
-            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-5 py-3 bg-white/80 backdrop-blur-sm border border-gray-200/50 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all duration-300"
+            >
+              <Filter className="w-4 h-4" />
+              Filter
+            </button>
           </div>
 
-          {/* Filter Options */}
           {showFilters && (
             <div className="mt-4 p-4 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-sm animate-in fade-in duration-300">
+              {/* Filter buttons - unchanged */}
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-gray-700">
-                  Filter by type:
-                </span>
+                <span className="text-sm font-medium text-gray-700">Filter by type:</span>
                 <button
                   onClick={() => {
                     setActiveFilter("all");
@@ -327,275 +343,208 @@ export default function ClassesPage() {
 
         {/* Classes Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {/* Existing Classes */}
-          {filtered.map((cls) => (
-            <div
-              key={cls._id}
-              className="group relative bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
-              onClick={() =>
-                (window.location.href = `/teacher/classes/${cls._id}`)
-              }
-            >
-              {/* Card Header */}
-              <div className="p-5 flex flex-col h-full">
-                <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                  {cls.name}
-                </h3>
-
-                {/* Class Code */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs text-gray-500 font-medium">
-                    Code:
-                  </span>
-                  <code className="text-xs font-mono font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">
-                    {cls.code}
-                  </code>
-                </div>
-
-                {/* Stats */}
-                <div className="flex items-center gap-4 mb-4 text-sm text-gray-700">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-4 h-4 text-gray-500" />
-                    <span>
-                      {cls.students} Student{cls.students !== 1 ? "s" : ""}
-                    </span>
+          {filtered.length === 0 ? (
+            <div className="col-span-full text-center py-16 px-6">
+              <div className="relative mx-auto mb-10">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-200 to-purple-200 rounded-full blur-3xl opacity-40 animate-pulse"></div>
+                <div className="relative bg-gradient-to-br from-white to-blue-50/50 rounded-3xl w-64 h-64 mx-auto flex flex-col items-center justify-center shadow-2xl border border-gray-200/50 backdrop-blur-sm">
+                  <div className="p-6 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full mb-6">
+                    <BookOpen className="w-20 h-20 text-blue-600" />
                   </div>
-                  {cls.schedule && (
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-gray-500" />
-                      <span>{cls.schedule}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Manage Students & Badge */}
-                <div className="flex items-center justify-between mt-auto">
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors flex-1 justify-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.location.href = `/teacher/classes/${cls._id}/students`;
-                    }}
-                  >
-                    <Users className="w-4 h-4" />
-                    <span>Manage Students</span>
-                  </div>
-
-                  <div
-                    className={`ml-3 p-2 rounded-xl ${
-                      cls.type === "public"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                    title={
-                      cls.type === "public" ? "Public Class" : "Private Class"
-                    }
-                  >
-                    {cls.type === "public" ? (
-                      <Globe className="w-5 h-5" />
-                    ) : (
-                      <Lock className="w-5 h-5" />
-                    )}
-                  </div>
+                  <p className="text-lg font-semibold text-gray-700">No classes found</p>
                 </div>
               </div>
 
-              {/* Top-right Dropdown */}
-              <div
-                className="absolute top-3 right-3 z-10"
-                onClick={(e) => e.stopPropagation()} // prevent card click
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                {searchTerm || activeFilter !== "all" ? "No matching classes" : "Welcome to your classroom"}
+              </h2>
+              <p className="text-lg text-gray-600 mb-10 max-w-2xl mx-auto">
+                {searchTerm || activeFilter !== "all"
+                  ? "Try adjusting your search or filters"
+                  : "Create your first class to start organizing students and assignments."}
+              </p>
+
+              <Link
+                href="/teacher/classes/new"
+                className="group relative inline-flex items-center gap-4 px-10 py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 overflow-hidden"
               >
-                <button
-                  onClick={() => toggleDropdown(cls._id)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="More options"
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 group-hover:from-blue-700 group-hover:to-purple-700 transition-all duration-300"></div>
+                <Sparkles className="w-6 h-6 relative z-10" />
+                <span className="relative z-10">Create Your First Class</span>
+                <ChevronRight className="w-5 h-5 relative z-10 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300" />
+              </Link>
+            </div>
+          ) : (
+            filtered.map((cls) => (
+              <div
+                key={cls._id}
+                className="group relative bg-white rounded-2xl border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
+                onClick={() => (window.location.href = `/teacher/classes/${cls._id}`)}
+              >
+                <div className="p-5 flex flex-col h-full">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    {cls.name}
+                  </h3>
+
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs text-gray-500 font-medium">Code:</span>
+                    <code className="text-xs font-mono font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded">
+                      {cls.code}
+                    </code>
+                  </div>
+
+                  <div className="flex items-center gap-4 mb-4 text-sm text-gray-700">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-4 h-4 text-gray-500" />
+                      <span>
+                        {cls.studentCount || 0} Student{cls.studentCount !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {cls.schedule && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-gray-500" />
+                        <span>{cls.schedule}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between mt-auto">
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors flex-1 justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/teacher/classes/${cls._id}/students`;
+                      }}
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>Manage Students</span>
+                    </div>
+
+                    <div
+                      className={`ml-3 p-2 rounded-xl ${
+                        cls.type === "public" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                      }`}
+                      title={cls.type === "public" ? "Public Class" : "Private Class"}
+                    >
+                      {cls.type === "public" ? <Globe className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dropdown */}
+                <div
+                  className="absolute top-3 right-3 z-10"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <MoreVertical className="w-5 h-5 text-gray-500" />
-                </button>
+                  <button
+                    onClick={() => toggleDropdown(cls._id)}
+                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <MoreVertical className="w-5 h-5 text-gray-500" />
+                  </button>
 
-                {openDropdown === cls._id && (
-                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden animate-in scale-in origin-top-right">
-                    <div className="py-1">
-                      {/* View */}
-                      <button
-                        onClick={() => {
-                          setOpenDropdown(null);
-                          window.location.href = `/teacher/classes/${cls._id}`;
-                        }}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700 w-full"
-                      >
-                        <Eye className="w-4 h-4" />
-                        <span className="font-medium">View Details</span>
-                      </button>
-
-                      {/* Edit */}
-                      <Link
-                        href={`/teacher/classes/${cls._id}/edit`}
-                        onClick={() => setOpenDropdown(null)}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700 w-full"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                        <span className="font-medium">Edit Class</span>
-                      </Link>
-
-                      {/* Invite */}
-                      {cls.inviteLink && (
+                  {openDropdown === cls._id && (
+                    <div
+                      ref={dropdownRef}
+                      className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden animate-in scale-in origin-top-right"
+                    >
+                      <div className="py-1">
                         <button
                           onClick={() => {
-                            copyInviteLink(cls.inviteLink!, cls._id);
                             setOpenDropdown(null);
+                            window.location.href = `/teacher/classes/${cls._id}`;
                           }}
                           className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700 w-full"
                         >
-                          {copiedId === cls._id ? (
-                            <>
-                              <Check className="w-4 h-4 text-green-600" />
-                              <span className="font-medium text-green-600">
-                                Copied!
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4" />
-                              <span className="font-medium">
-                                Copy Invite Link
-                              </span>
-                            </>
-                          )}
+                          <Eye className="w-4 h-4" />
+                          <span className="font-medium">View Details</span>
                         </button>
-                      )}
 
-                      {/* Delete */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenDropdown(null);
-                          if (
-                            !confirm(
-                              "Are you sure you want to delete this class?"
-                            )
-                          )
-                            return;
-                          deleteClass(cls._id);
-                        }}
-                        className="flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 w-full"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span className="font-medium">Delete Class</span>
-                      </button>
+                        <Link
+                          href={`/teacher/classes/${cls._id}/edit`}
+                          onClick={() => setOpenDropdown(null)}
+                          className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700 w-full"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          <span className="font-medium">Edit Class</span>
+                        </Link>
+
+                        {cls.inviteLink && (
+                          <button
+                            onClick={() => {
+                              copyInviteLink(cls.inviteLink!, cls._id);
+                              setOpenDropdown(null);
+                            }}
+                            className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 text-gray-700 w-full"
+                          >
+                            {copiedId === cls._id ? (
+                              <>
+                                <Check className="w-4 h-4 text-green-600" />
+                                <span className="font-medium text-green-600">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4" />
+                                <span className="font-medium">Copy Invite Link</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => {
+                            setOpenDropdown(null);
+                            if (!confirm("Are you sure you want to delete this class?")) return;
+                            deleteClass(cls._id);
+                          }}
+                          className="flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-red-600 w-full"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="font-medium">Delete Class</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-
-          {/* Add New Class Card */}
-          <Link
-            href="/teacher/classes/new"
-            className="border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center p-8 hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-300 group"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-              <Plus className="w-6 h-6 text-gray-500 group-hover:text-blue-600 transition-colors" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Add New Class
-            </h3>
-            <p className="text-gray-500 text-center text-sm">
-              Create a new class
-            </p>
-          </Link>
+            ))
+          )}
         </div>
 
-        {/* Empty State */}
-        {filtered.length === 0 && (
-          <div className="text-center py-16 px-6">
-            <div className="relative mx-auto mb-10">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-200 to-purple-200 rounded-full blur-3xl opacity-40 animate-pulse"></div>
-              <div className="relative bg-gradient-to-br from-white to-blue-50/50 rounded-3xl w-64 h-64 mx-auto flex flex-col items-center justify-center shadow-2xl border border-gray-200/50 backdrop-blur-sm">
-                <div className="p-6 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full mb-6">
-                  <BookOpen className="w-20 h-20 text-blue-600" />
-                </div>
-                <p className="text-lg font-semibold text-gray-700">
-                  No classes found
-                </p>
-              </div>
-            </div>
-
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              {searchTerm || activeFilter !== "all"
-                ? "No matching classes"
-                : "Welcome to your classroom"}
-            </h2>
-            <p className="text-lg text-gray-600 mb-10 max-w-2xl mx-auto">
-              {searchTerm
-                ? "Try adjusting your search or filters"
-                : "Create your first class to start organizing students and assignments."}
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              {(searchTerm || activeFilter !== "all") && (
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setActiveFilter("all");
-                    setShowFilters(false);
-                  }}
-                  className="px-8 py-4 bg-gray-100 text-gray-700 rounded-2xl font-semibold hover:bg-gray-200 transition-all duration-300"
-                >
-                  Clear Search & Filters
-                </button>
-              )}
-              {!searchTerm && activeFilter === "all" && (
-                <Link
-                  href="/teacher/classes/new"
-                  className="group relative inline-flex items-center gap-4 px-10 py-5 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-purple-600 group-hover:from-blue-700 group-hover:to-purple-700 transition-all duration-300"></div>
-                  <Sparkles className="w-6 h-6 relative z-10" />
-                  <span className="relative z-10">Create Your First Class</span>
-                  <ChevronRight className="w-5 h-5 relative z-10 opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all duration-300" />
-                </Link>
-              )}
-            </div>
+        {/* Add New Class Card */}
+        <Link
+          href="/teacher/classes/new"
+          className="border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center p-8 hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-300 group"
+        >
+          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
+            <Plus className="w-6 h-6 text-gray-500 group-hover:text-blue-600 transition-colors" />
           </div>
-        )}
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Add New Class</h3>
+          <p className="text-gray-500 text-center text-sm">Create a new class</p>
+        </Link>
 
         {/* Footer Stats */}
-        {filtered.length > 0 && (
+        {classes.length > 0 && (
           <div className="mt-12 pt-8 border-t border-gray-200/50">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
                 <p className="text-gray-500 font-medium">
                   Showing{" "}
-                  <span className="font-bold text-gray-900">
-                    {filtered.length}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-bold text-gray-900">
-                    {classes.length}
-                  </span>{" "}
-                  classes
+                  <span className="font-bold text-gray-900">{filtered.length}</span> of{" "}
+                  <span className="font-bold text-gray-900">{classes.length}</span> classes
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  {activeFilter !== "all" &&
-                    `Filtered by: ${activeFilter} classes`}
+                  {activeFilter !== "all" && `Filtered by: ${activeFilter} classes`}
                 </p>
               </div>
               <div className="flex items-center gap-6 text-sm text-gray-500">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span>
-                    Public: {classes.filter((c) => c.type === "public").length}
-                  </span>
+                  <span>Public: {classes.filter((c) => c.type === "public").length}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-                  <span>
-                    Private:{" "}
-                    {classes.filter((c) => c.type === "private").length}
-                  </span>
+                  <span>Private: {classes.filter((c) => c.type === "private").length}</span>
                 </div>
               </div>
             </div>

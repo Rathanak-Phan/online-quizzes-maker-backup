@@ -1,3 +1,4 @@
+// src/lib/models/Challenge.ts
 import mongoose from "mongoose";
 
 const ScoreSchema = new mongoose.Schema({
@@ -7,8 +8,19 @@ const ScoreSchema = new mongoose.Schema({
 });
 
 const ChallengeSchema = new mongoose.Schema({
-  quiz: { type: mongoose.Schema.Types.ObjectId, ref: "QuizTemplate" },
+  title: { type: String },
+  quiz: { type: mongoose.Schema.Types.ObjectId, ref: "Quiz", required: true },
   class: { type: mongoose.Schema.Types.ObjectId, ref: "Class" },
+  startTime: { type: Date },
+  endTime: { type: Date },
+  isActive: { type: Boolean, default: true },
+  leaderboard: [{
+    student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    score: Number,
+    percentage: Number,
+    timeSpent: Number,
+    submittedAt: Date
+  }],
   scores: [ScoreSchema],
 }, { timestamps: true });
 

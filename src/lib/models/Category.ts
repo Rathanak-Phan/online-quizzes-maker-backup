@@ -1,3 +1,4 @@
+// src/lib/models/Category.ts
 import mongoose, { Schema, models, model } from "mongoose";
 
 const CategorySchema = new Schema(

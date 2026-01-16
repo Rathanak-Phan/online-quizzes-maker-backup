@@ -10,7 +10,6 @@ const menuItems = [
   { name: "Dashboard", path: "/admin", icon: "🏠" },
   { name: "Users", path: "/admin/users", icon: "👥" },
   { name: "Quizzes", path: "/admin/quizzes", icon: "📝" },
-  { name: "Students", path: "/admin/students", icon: "🎓" },
   { name: "Submissions", path: "/admin/submissions", icon: "📤" },
   { name: "Reports", path: "/admin/reports", icon: "📊" },
   { name: "Audit Logs", path: "/admin/audit-logs", icon: "📜" },
