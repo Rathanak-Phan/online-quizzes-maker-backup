@@ -33,7 +33,7 @@ export default function LoginPage() {
         // Redirect based on role
         if (data.role.toLowerCase() === "admin") router.push("/admin");
         else if (data.role.toLowerCase() === "teacher") router.push("/teacher");
-        else if (data.role.toLowerCase() === "user") router.push("/student");
+        else if (data.role.toLowerCase() === "user") router.push("/");
         else router.push("/"), router.refresh();
       } else {
         // Handle pending teacher or other errors
@@ -144,8 +144,10 @@ export default function LoginPage() {
               <p
                 className={`text-center font-medium py-3 rounded-lg ${
                   message.includes("successful")
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
+                    ? "bg-green-100 text-green-600"
+                    : message.includes("pending")
+                    ? "bg-yellow-100 text-yellow-600"
+                    : "bg-red-100 text-red-600"
                 }`}
               >
                 {message}

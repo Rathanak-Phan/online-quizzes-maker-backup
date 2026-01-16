@@ -1,110 +1,160 @@
 // src/app/api/teacher/classes/[id]/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
 import ClassModel from "@/lib/models/Class";
+import { verifyToken } from "@/lib/jwt";
 
-type Params = { id: string };
-
-export async function GET(req: Request, context: { params: Promise<Params> }) {
-  await connectDB();
-
+/* ======================
+   GET: Single class
+====================== */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = await context.params;
+    await connectDB();
 
-    const cls = await ClassModel.findById(id).lean();
+    const { id } = await params;
 
-    if (!cls) {
-      return NextResponse.json(
-        { success: false, error: "Class not found" },
-        { status: 404 }
-      );
+    const token = req.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const user = verifyToken(token);
+    if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
+    const classDoc = await ClassModel.findById(id)
+      .populate("students", "name email")
+      .populate("quizzes", "title")
+      .lean();
+
+    if (!classDoc) {
+      return NextResponse.json({ success: false, error: "Class not found" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      success: true,
-      data: cls, // ✅ MATCH FRONTEND
-    });
-  } catch (err) {
-    console.error("GET ERROR:", err);
-    return NextResponse.json(
-      { success: false, error: "Failed to fetch class" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, class: classDoc });
+  } catch (error: any) {
+    console.error("GET class error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-export async function PATCH(
-  req: Request,
-  context: { params: Promise<Params> }
+/* ======================
+   PUT: Update class
+====================== */
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  await connectDB();
-
   try {
-    const { id } = await context.params; // ✅ REQUIRED
+    await connectDB();
+
+    const { id } = await params;
+
+    const token = req.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const user = verifyToken(token);
+    if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
     const body = await req.json();
 
-    const { name, code, type, subject, schedule } = body;
-
-    if (!name || !code) {
-      return NextResponse.json(
-        { success: false, message: "Name and code are required" },
-        { status: 400 }
-      );
-    }
-
-    const updated = await ClassModel.findByIdAndUpdate(
-      id,
+    const updated = await ClassModel.findOneAndUpdate(
+      { _id: id, teacher: user._id },
       {
-        name,
-        code: code.toUpperCase(),
-        type,
-        subject,
-        schedule,
+        name: body.name?.trim(),
+        type: body.type,
+        subject: body.subject?.trim(),
+        schedule: body.schedule?.trim(),
       },
       { new: true, runValidators: true }
     );
 
     if (!updated) {
-      return NextResponse.json(
-        { success: false, message: "Class not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Class not found or not owned" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, class: updated });
-  } catch (err) {
-    console.error("PATCH ERROR:", err);
-    return NextResponse.json(
-      { success: false, message: "Failed to update class" },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("UPDATE class error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
+/* ======================
+   DELETE: Remove class
+====================== */
 export async function DELETE(
-  req: Request,
-  context: { params: Promise<Params> }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  await connectDB();
-
   try {
-    const { id } = await context.params; // ✅ REQUIRED
+    await connectDB();
 
-    const deleted = await ClassModel.findByIdAndDelete(id);
+    const { id } = await params;
+
+    const token = req.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const user = verifyToken(token);
+    if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
+    const deleted = await ClassModel.findOneAndDelete({
+      _id: id,
+      teacher: user._id,
+    });
 
     if (!deleted) {
-      return NextResponse.json(
-        { success: false, message: "Class not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Class not found or not owned" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("DELETE ERROR:", err);
-    return NextResponse.json(
-      { success: false, message: "Failed to delete class" },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    console.error("DELETE class error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+/* ======================
+   POST: Duplicate class
+====================== */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await connectDB();
+
+    const { id } = await params;
+
+    const token = req.cookies.get("token")?.value;
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const user = verifyToken(token);
+    if (!user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
+    const cls = await ClassModel.findById(id);
+    if (!cls) {
+      return NextResponse.json({ success: false, error: "Class not found" }, { status: 404 });
+    }
+
+    const duplicated = await ClassModel.create({
+      teacher: user._id,
+      name: `${cls.name} (Copy)`,
+      code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      type: cls.type,
+      students: [],
+      quizzes: [],
+      inviteCode: Math.random().toString(36).substring(2, 12).toUpperCase(),
+      subject: cls.subject,
+      schedule: cls.schedule,
+    });
+
+    return NextResponse.json({
+      success: true,
+      class: duplicated,
+    });
+  } catch (error: any) {
+    console.error("DUPLICATE class error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

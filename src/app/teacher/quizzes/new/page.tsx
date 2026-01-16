@@ -11,8 +11,8 @@ import {
   Trash2,
   HelpCircle,
   Clock,
-  Type,
   Hash,
+  Loader2,
 } from "lucide-react";
 
 interface Question {
@@ -27,21 +27,19 @@ interface Question {
 
 export default function NewQuizPage() {
   const router = useRouter();
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // Quiz form state
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     category: "Mathematics",
     timeLimit: 30,
-    status: "draft",
+    status: "draft" as "draft" | "published",
     isTemplate: false,
   });
 
-  // Questions state
   const [questions, setQuestions] = useState<Question[]>([
     {
       id: Date.now().toString(),
@@ -54,7 +52,6 @@ export default function NewQuizPage() {
     },
   ]);
 
-  // Available categories
   const categories = [
     "Mathematics",
     "Science",
@@ -68,52 +65,57 @@ export default function NewQuizPage() {
     "Other",
   ];
 
-  // Handle form input changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     const { name, value, type } = e.target;
-    
+
     if (type === "checkbox") {
       const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
+      setFormData((prev) => ({ ...prev, [name]: checked }));
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev) => ({ ...prev, [name]: value }));
     }
   };
 
-  // Handle question changes
-  const handleQuestionChange = (index: number, field: keyof Question, value: any) => {
+  const handleQuestionChange = (
+    index: number,
+    field: keyof Question,
+    value: any
+  ) => {
     const updatedQuestions = [...questions];
-    
+
     if (field === "type") {
-      // Reset options when changing type
       if (value === "multiple") {
         updatedQuestions[index].options = ["", "", "", ""];
         updatedQuestions[index].correctAnswer = 0;
       } else if (value === "truefalse") {
         updatedQuestions[index].options = ["True", "False"];
-        updatedQuestions[index].correctAnswer = 0;
+        updatedQuestions[index].correctAnswer = "True";
       } else if (value === "shortanswer") {
         updatedQuestions[index].options = [];
         updatedQuestions[index].correctAnswer = "";
       }
     }
-    
+
     updatedQuestions[index] = {
       ...updatedQuestions[index],
       [field]: value,
     };
-    
+
     setQuestions(updatedQuestions);
   };
 
-  // Handle option changes for multiple choice
-  const handleOptionChange = (questionIndex: number, optionIndex: number, value: string) => {
+  const handleOptionChange = (
+    questionIndex: number,
+    optionIndex: number,
+    value: string
+  ) => {
     const updatedQuestions = [...questions];
     updatedQuestions[questionIndex].options[optionIndex] = value;
     setQuestions(updatedQuestions);
   };
 
-  // Add new question
   const addQuestion = () => {
     const newQuestion: Question = {
       id: Date.now().toString(),
@@ -127,17 +129,14 @@ export default function NewQuizPage() {
     setQuestions([...questions, newQuestion]);
   };
 
-  // Remove question
   const removeQuestion = (index: number) => {
     if (questions.length <= 1) {
       alert("At least one question is required");
       return;
     }
-    const updatedQuestions = questions.filter((_, i) => i !== index);
-    setQuestions(updatedQuestions);
+    setQuestions(questions.filter((_, i) => i !== index));
   };
 
-  // Validate form
   const validateForm = (): boolean => {
     if (!formData.title.trim()) {
       setError("Quiz title is required");
@@ -149,35 +148,27 @@ export default function NewQuizPage() {
       return false;
     }
 
-    // Validate questions
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      
+
       if (!q.text.trim()) {
         setError(`Question ${i + 1} text is required`);
         return false;
       }
 
-      if (q.type === "multiple") {
-        const hasEmptyOptions = q.options.some(opt => !opt.trim());
-        if (hasEmptyOptions) {
-          setError(`Question ${i + 1} has empty options`);
-          return false;
-        }
+      if (q.type === "multiple" && q.options.some(opt => !opt.trim())) {
+        setError(`Question ${i + 1} has empty options`);
+        return false;
       }
     }
 
     return true;
   };
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setError(null);
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
       setLoading(true);
@@ -185,55 +176,68 @@ export default function NewQuizPage() {
       const quizData = {
         ...formData,
         questions: questions.map(q => ({
-          ...q,
-          id: undefined, // Remove id as MongoDB will create its own
+          text: q.text.trim(),
+          type: q.type,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          points: Number(q.points) || 1,
+          explanation: q.explanation?.trim() || "",
         })),
       };
 
       const response = await fetch("/api/teacher/quizzes", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // sends your token cookie
         body: JSON.stringify(quizData),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to create quiz");
+        throw new Error(
+          result.error ||
+          (result.details?.join(", ")) ||
+          "Failed to create quiz"
+        );
       }
 
-      // Redirect to quizzes page or edit page
-      router.push(`/teacher/quizzes/${result.quizId}/edit`);
-      
+      router.push(`/teacher/quizzes/${result.quiz._id}/edit`);
     } catch (err: any) {
-      console.error("Error creating quiz:", err);
-      setError(err.message || "Failed to create quiz");
+      console.error("Create quiz error:", err);
+
+      let errorMsg = "Failed to create quiz";
+      if (err.message.includes("creator") || err.message.includes("Unauthorized")) {
+        errorMsg = "Please login again as a teacher.";
+      } else if (err.message.includes("status")) {
+        errorMsg = "Invalid status value.";
+      } else if (err.message.includes("questions")) {
+        errorMsg = "Add at least one valid question.";
+      } else {
+        errorMsg = err.message;
+      }
+
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle save as draft
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = () => {
     setFormData(prev => ({ ...prev, status: "draft" }));
-    await handleSubmit(new Event("submit") as any);
+    handleSubmit();
   };
 
-  // Handle publish
-  const handlePublish = async () => {
-    setFormData(prev => ({ ...prev, status: "active" }));
-    await handleSubmit(new Event("submit") as any);
-    
+  const handlePublish = () => {
+    setFormData(prev => ({ ...prev, status: "published" }));
+    handleSubmit();
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
               <Link
                 href="/teacher/quizzes"
@@ -244,46 +248,44 @@ export default function NewQuizPage() {
               </Link>
               <h1 className="text-3xl font-bold text-gray-900">Create New Quiz</h1>
             </div>
-            <div className="flex gap-3">
+
+            <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={loading}
-                className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-60"
               >
-                <Save className="w-4 h-4" />
-                Save as Draft
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {loading ? "Saving..." : "Save as Draft"}
               </button>
+
               <button
                 type="button"
                 onClick={handlePublish}
                 disabled={loading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-60"
               >
-                <Save className="w-5 h-5" />
-                Publish Quiz
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                {loading ? "Publishing..." : "Publish Quiz"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center">
-              <HelpCircle className="w-5 h-5 text-red-400 mr-2" />
-              <p className="text-red-700">{error}</p>
-            </div>
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 flex items-start gap-3">
+            <HelpCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Basic Info Section */}
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-8">
+          {/* Basic Info */}
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Basic Information</h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Title */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Quiz Title *
@@ -299,7 +301,6 @@ export default function NewQuizPage() {
                 />
               </div>
 
-              {/* Description */}
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
@@ -314,7 +315,6 @@ export default function NewQuizPage() {
                 />
               </div>
 
-              {/* Category */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Category *
@@ -323,24 +323,23 @@ export default function NewQuizPage() {
                   name="category"
                   value={formData.category}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                   required
                 >
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Time Limit */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Time Limit (minutes) *
                 </label>
                 <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                   <input
                     type="number"
                     name="timeLimit"
@@ -358,12 +357,14 @@ export default function NewQuizPage() {
 
           {/* Questions Section */}
           <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Questions ({questions.length})</h2>
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Questions ({questions.length})
+              </h2>
               <button
                 type="button"
                 onClick={addQuestion}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 Add Question
@@ -371,20 +372,24 @@ export default function NewQuizPage() {
             </div>
 
             {questions.map((question, index) => (
-              <div key={question.id} className="border border-gray-200 rounded-lg p-6 mb-6 last:mb-0">
+              <div
+                key={question.id}
+                className="border border-gray-200 rounded-lg p-6 mb-6 last:mb-0 bg-gray-50/30"
+              >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">Question {index + 1}</h3>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Question {index + 1}
+                  </h3>
                   <button
                     type="button"
                     onClick={() => removeQuestion(index)}
-                    className="text-red-600 hover:text-red-800"
+                    className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
 
                 <div className="space-y-6">
-                  {/* Question Text */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Question Text *
@@ -399,7 +404,6 @@ export default function NewQuizPage() {
                     />
                   </div>
 
-                  {/* Question Type */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Question Type *
@@ -407,7 +411,7 @@ export default function NewQuizPage() {
                     <select
                       value={question.type}
                       onChange={(e) => handleQuestionChange(index, "type", e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                     >
                       <option value="multiple">Multiple Choice</option>
                       <option value="truefalse">True/False</option>
@@ -415,7 +419,6 @@ export default function NewQuizPage() {
                     </select>
                   </div>
 
-                  {/* Options for Multiple Choice */}
                   {question.type === "multiple" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -445,30 +448,38 @@ export default function NewQuizPage() {
                     </div>
                   )}
 
-                  {/* Options for True/False */}
                   {question.type === "truefalse" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-3">
-                        Select the correct answer *
+                        Correct Answer *
                       </label>
-                      <div className="space-y-3">
-                        {question.options.map((option, optIndex) => (
-                          <div key={optIndex} className="flex items-center gap-3">
-                            <input
-                              type="radio"
-                              name={`correctAnswer-${index}`}
-                              checked={question.correctAnswer === optIndex}
-                              onChange={() => handleQuestionChange(index, "correctAnswer", optIndex)}
-                              className="w-4 h-4 text-blue-600"
-                            />
-                            <span className="text-gray-700">{option}</span>
-                          </div>
-                        ))}
+                      <div className="flex gap-6">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`correctAnswer-${index}`}
+                            value="True"
+                            checked={question.correctAnswer === "True"}
+                            onChange={() => handleQuestionChange(index, "correctAnswer", "True")}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          True
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={`correctAnswer-${index}`}
+                            value="False"
+                            checked={question.correctAnswer === "False"}
+                            onChange={() => handleQuestionChange(index, "correctAnswer", "False")}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          False
+                        </label>
                       </div>
                     </div>
                   )}
 
-                  {/* Correct Answer for Short Answer */}
                   {question.type === "shortanswer" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -479,23 +490,22 @@ export default function NewQuizPage() {
                         value={question.correctAnswer as string}
                         onChange={(e) => handleQuestionChange(index, "correctAnswer", e.target.value)}
                         className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Enter the correct answer"
+                        placeholder="Enter the correct answer..."
                         required
                       />
                     </div>
                   )}
 
-                  {/* Points */}
                   <div className="max-w-xs">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Points *
                     </label>
                     <div className="relative">
-                      <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                       <input
                         type="number"
                         value={question.points}
-                        onChange={(e) => handleQuestionChange(index, "points", parseInt(e.target.value) || 1)}
+                        onChange={(e) => handleQuestionChange(index, "points", Number(e.target.value) || 1)}
                         min="1"
                         max="100"
                         className="w-full pl-11 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -504,7 +514,6 @@ export default function NewQuizPage() {
                     </div>
                   </div>
 
-                  {/* Explanation */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Explanation (Optional)
@@ -522,10 +531,10 @@ export default function NewQuizPage() {
             ))}
           </div>
 
-          {/* Settings Section */}
+          {/* Settings */}
           <div className="bg-white rounded-xl shadow-sm p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Settings</h2>
-            
+
             <div className="space-y-4">
               <div className="flex items-center">
                 <input
@@ -548,29 +557,32 @@ export default function NewQuizPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-200">
             <Link
               href="/teacher/quizzes"
-              className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors w-full sm:w-auto text-center"
             >
               Cancel
             </Link>
-            
-            <div className="flex gap-3">
+
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={handleSaveDraft}
                 disabled={loading}
-                className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="flex-1 sm:flex-none px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
               >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 {loading ? "Saving..." : "Save as Draft"}
               </button>
+
               <button
                 type="button"
                 onClick={handlePublish}
                 disabled={loading}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50"
+                className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
               >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 {loading ? "Publishing..." : "Publish Quiz"}
               </button>
             </div>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Bell, Search, LogOut, ChevronDown } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 type UserProfile = {
   id: string;
@@ -102,6 +103,12 @@ export default function Header() {
 
           {/* RIGHT */}
           <div className="flex items-center gap-4">
+            <div>
+              <Link href="/student" className="text-green-500 hover:text-blue-600">
+                Views as student
+              </Link>
+            </div>
+
             {/* SEARCH */}
             <form onSubmit={handleSearch} className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -116,15 +123,15 @@ export default function Header() {
             </form>
 
             {/* NOTIFICATIONS */}
-            <button
-              className="relative p-2.5 rounded-xl hover:bg-gray-50"
-            >
+            <button className="relative p-2.5 rounded-xl hover:bg-gray-50">
               <Bell className="w-7 h-7 text-gray-600" />
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px]
+              <span
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px]
                  text-red-600 text-xs font-bold rounded-full
-                  flex items-center justify-center">
-                  99+
-                </span>
+                  flex items-center justify-center"
+              >
+                99+
+              </span>
             </button>
 
             {/* PROFILE DROPDOWN */}
@@ -142,9 +149,11 @@ export default function Header() {
                     className="rounded-full object-cover border-2 border-white shadow-md"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 
+                  <div
+                    className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 
                     flex items-center justify-center text-white font-bold text-lg
-                    border-2 border-white shadow-md">
+                    border-2 border-white shadow-md"
+                  >
                     {profile?.name?.[0]?.toUpperCase() || "T"}
                   </div>
                 )}

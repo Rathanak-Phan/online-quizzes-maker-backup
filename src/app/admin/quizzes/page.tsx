@@ -1,48 +1,27 @@
-// app/admin/quizzes/page.tsx
-import clientPromise from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
+// src/app/admin/quizzes/page.tsx
+import Quiz from "@/lib/models/Quiz";
 
 async function getAllQuizzes() {
-  const client = await clientPromise;
-  const db = client.db('online-quizzes');
-  const quizzes = await db.collection('quizzes').aggregate([
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'teacherId',
-        foreignField: '_id',
-        as: 'teacher'
-      }
-    },
-    { $unwind: { path: '$teacher', preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        title: 1,
-        category: 1,
-        questions: 1,
-        createdAt: 1,
-        teacherName: { $ifNull: ['$teacher.name', 'Unknown'] }
-      }
-    }
-  ]).toArray();
-
-  return quizzes;
-}
-
-async function deleteQuiz(formData: FormData) {
-  'use server';
-  const id = formData.get('id') as string;
-
-  const client = await clientPromise;
-  const db = client.db('online-quizzes');
-  await db.collection('quizzes').deleteOne({ _id: new ObjectId(id) });
+  try {
+    // Fetch all quizzes from MongoDB
+    const quizzes = await Quiz.find().lean(); // lean() returns plain JS objects
+    return quizzes.map((q) => ({
+      ...q,
+      _id: q._id.toString(),
+      createdAt: q.createdAt?.toString() || new Date().toString(),
+    }));
+  } catch (err) {
+    console.error("Error fetching quizzes:", err);
+    return [];
+  }
 }
 
 export default async function QuizzesPage() {
   const quizzes = await getAllQuizzes();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold text-gray-900">Quiz Management</h1>
@@ -64,7 +43,7 @@ export default async function QuizzesPage() {
         <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
           <h3 className="text-lg font-medium opacity-90">Categories</h3>
           <p className="text-4xl font-bold mt-3">
-            {new Set(quizzes.map(q => q.category)).size}
+            {new Set(quizzes.map((q) => q.category)).size}
           </p>
         </div>
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
@@ -84,7 +63,7 @@ export default async function QuizzesPage() {
         />
       </div>
 
-      {/* Quiz List */}
+      {/* Quiz Table */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -93,7 +72,6 @@ export default async function QuizzesPage() {
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Title</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Category</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Questions</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Teacher</th>
                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Created</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Actions</th>
               </tr>
@@ -101,13 +79,13 @@ export default async function QuizzesPage() {
             <tbody className="divide-y divide-gray-200">
               {quizzes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                     No quizzes found. Create the first one!
                   </td>
                 </tr>
               ) : (
                 quizzes.map((quiz: any) => (
-                  <tr key={quiz._id.toString()} className="hover:bg-gray-50 transition">
+                  <tr key={quiz._id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 font-medium text-gray-900">{quiz.title}</td>
                     <td className="px-6 py-4">
                       <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
@@ -115,7 +93,6 @@ export default async function QuizzesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-700">{quiz.questions?.length || 0}</td>
-                    <td className="px-6 py-4 text-gray-700">{quiz.teacherName}</td>
                     <td className="px-6 py-4 text-gray-500 text-sm">
                       {new Date(quiz.createdAt).toLocaleDateString()}
                     </td>
@@ -123,12 +100,7 @@ export default async function QuizzesPage() {
                       <div className="flex items-center justify-center gap-3">
                         <button className="text-blue-600 hover:text-blue-800 font-medium">View</button>
                         <button className="text-green-600 hover:text-green-800 font-medium">Edit</button>
-                        <form action={deleteQuiz} className="inline">
-                          <input type="hidden" name="id" value={quiz._id.toString()} />
-                          <button type="submit" className="text-red-600 hover:text-red-800 font-medium">
-                            Delete
-                          </button>
-                        </form>
+                        <button className="text-red-600 hover:text-red-800 font-medium">Delete</button>
                       </div>
                     </td>
                   </tr>

@@ -36,7 +36,6 @@ interface Quiz {
   isTemplate: boolean;
 }
 
-
 interface QuizCardProps {
   quiz: QuizType;
   onDelete: (id: string) => void;
@@ -154,11 +153,11 @@ export function QuizCard({
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                 <div className="py-1">
                   <Link
-                    href={`/teacher/quizzes/${quiz._id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700"
+                    href={`/teacher/quizzes/${quiz._id}/preview`}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-gray-700 w-full"
                     onClick={() => setShowDropdown(false)}
                   >
-                    <Eye className="w-4 h-4" />
+                    <Eye className="w-5 h-5" />
                     Preview
                   </Link>
                   <Link

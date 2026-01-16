@@ -80,7 +80,7 @@ export default function Header() {
 
   return (
     <header className="w-full bg-white shadow-sm fixed z-100">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="max-w-7xl h-[70px] mx-auto px-6 flex items-center justify-between">
         {/* Logo */}
         <div className="text-2xl font-bold text-blue-600">
           <Link href="/">Online-Quiz</Link>
@@ -97,7 +97,7 @@ export default function Header() {
           <Link href="/student/classes" className="hover:text-blue-600">
             Classes
           </Link>
-          <Link href="/student/dashboard" className="hover:text-blue-600">
+          <Link href="/student/" className="hover:text-blue-600">
             Dashboard
           </Link>
         </nav>
