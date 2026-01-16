@@ -1,4 +1,4 @@
-// app/teacher/classes/[classId]/page.tsx
+// app/teacher/classes/[id]/page.tsx
 "use client";
 
 import { useParams } from "next/navigation";
@@ -41,10 +41,10 @@ interface ClassData {
 export default function ClassDetailPage() {
   const params = useParams();
   const classId =
-    typeof params.classId === "string"
-      ? params.classId
-      : Array.isArray(params.classId)
-      ? params.classId[0]
+    typeof params.id === "string"
+      ? params.id
+      : Array.isArray(params.id)
+      ? params.id[0]
       : null;
 
   const [classData, setClassData] = useState<ClassData | null>(null);
@@ -57,7 +57,7 @@ export default function ClassDetailPage() {
   }, [classId]);
 
   const fetchClass = async () => {
-    if (!classId) return; // 👈 just wait, don't error
+    if (!classId) return;
 
     try {
       setLoading(true);
@@ -73,7 +73,21 @@ export default function ClassDetailPage() {
         throw new Error(data.error || "Failed to load class");
       }
 
-      setClassData(data.data);
+      // ✅ Correct property
+      setClassData({
+        _id: data.class._id,
+        name: data.class.name,
+        code: data.class.code,
+        type: data.class.type,
+        students: data.class.students?.length || 0,
+        quizzes: data.class.quizzes?.length || 0,
+        avgScore: data.class.avgScore || 0, // optional, calculate if needed
+        inviteLink: data.class.inviteCode,
+        createdAt: data.class.createdAt,
+        description: data.class.description,
+        subject: data.class.subject,
+        schedule: data.class.schedule,
+      });
     } catch (err: any) {
       console.error("Fetch error:", err);
       setError(err.message || "Failed to load class");
@@ -543,3 +557,7 @@ export default function ClassDetailPage() {
     </div>
   );
 }
+function setAvailableQuizzes(quizzes: any) {
+  throw new Error("Function not implemented.");
+}
+
