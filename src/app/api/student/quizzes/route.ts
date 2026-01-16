@@ -4,74 +4,76 @@ import connectDB from "@/lib/mongodb";
 import Quiz from "@/lib/models/Quiz";
 import QuizAttempt from "@/lib/models/QuizAttempt";
 import Class from "@/lib/models/Class";
-import Challenge from "@/lib/models/Challenge";
 import { verifyToken } from "@/lib/jwt";
+import mongoose from "mongoose";
 
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
+    // ✅ Check token
     const token = req.cookies.get("token")?.value;
-    if (!token) {
+    if (!token)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const user = verifyToken(token);
-    if (!user || user.role !== "user") { // "user" = student
+    if (!user || user.role !== "user") // user = student
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
 
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "assigned";
     const search = searchParams.get("search");
 
-    let quizzes = [];
+    // 1️⃣ Get classes student is enrolled in
+    const classes = await Class.find({ students: user._id }).lean();
+    const classIds = classes.map((c) => c._id);
 
-    if (type === "assigned") {
-      // Get classes student is in
-      const classes = await Class.find({ students: user._id }).lean();
-      const classIds = classes.map(c => c._id);
+    if (classIds.length === 0)
+      return NextResponse.json({ quizzes: [] }); // no classes, no quizzes
 
-      // Get quizzes assigned to those classes
-      quizzes = await Quiz.find({ assignedToClasses: { $in: classIds } }).lean();
-    } else if (type === "public") {
-      quizzes = await Quiz.find({ isPublic: true }).lean();
-    } else if (type === "challenges") {
-      quizzes = await Challenge.find({ class: { $in: await Class.find({ students: user._id }).distinct("_id") } })
-        .populate("quiz")
-        .lean();
-      quizzes = quizzes.map(c => c.quiz);
-    } else if (type === "attempts") {
-      quizzes = await QuizAttempt.find({ student: user._id })
-        .populate("quiz")
-        .lean();
-      quizzes = quizzes.map(a => ({
-        ...a.quiz,
-        status: a.status,
-      }));
-    }
+    // 2️⃣ Get quizzes assigned to those classes
+    let quizzes = await Quiz.find({ assignedToClasses: { $in: classIds } }).lean();
 
-    // Apply search if provided
+    // 3️⃣ Apply search filter
     if (search) {
-      quizzes = quizzes.filter(q => q.title.toLowerCase().includes(search.toLowerCase()));
+      const term = search.toLowerCase();
+      quizzes = quizzes.filter((q) => q.title.toLowerCase().includes(term));
     }
 
-    // Add derived fields
-    quizzes = quizzes.map(q => ({
-      _id: q._id,
-      title: q.title,
-      description: q.description,
-      category: q.category,
-      timeLimit: q.timeLimit,
-      questionsCount: q.questions.length,
-      status: q.status || "not-started",
-      type: type,
-    }));
+    // 4️⃣ Get student's quiz attempts
+    const quizIds = quizzes.map((q) => q._id);
+    const attempts = await QuizAttempt.find({
+      student: user._id,
+      quiz: { $in: quizIds },
+    }).lean();
 
-    return NextResponse.json({
-      success: true,
-      quizzes,
+    const attemptsMap = new Map(attempts.map((a) => [a.quiz.toString(), a]));
+
+    // 5️⃣ Map attemptStatus + percentage
+    const formattedQuizzes = quizzes.map((q) => {
+      const attempt = attemptsMap.get(q._id.toString());
+      let attemptStatus: "not-started" | "in-progress" | "completed" = "not-started";
+      let percentage: number | undefined;
+
+      if (attempt) {
+        if (attempt.status === "completed") {
+          attemptStatus = "completed";
+          percentage = attempt.percentage;
+        } else {
+          attemptStatus = "in-progress";
+        }
+      }
+
+      return {
+        _id: q._id,
+        title: q.title,
+        description: q.description,
+        timeLimit: q.timeLimit,
+        attemptStatus,
+        percentage,
+      };
     });
+
+    return NextResponse.json({ quizzes: formattedQuizzes });
   } catch (error: any) {
     console.error("GET student quizzes error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -35,7 +35,7 @@ export default function Sidebar({ currentPath }: { currentPath: string }) {
   return (
     <aside className="w-64 bg-gray-900 text-white flex flex-col h-screen sticky top-0">
       <div className="p-6 border-b border-gray-800">
-        <h2 className="text-2xl font-bold">QuizMaster</h2>
+        <h2 className="text-2xl font-bold">Online-Quiz</h2>
         <p className="text-sm text-gray-400">Admin Panel</p>
       </div>
 

@@ -71,7 +71,7 @@ export default function LoginPage() {
                 />
               </Link>
             </div>
-            <h1 className="text-3xl md:text-4xl font-bold mt-4">QuizMaster</h1>
+            <h1 className="text-3xl md:text-4xl font-bold mt-4">Online-Quiz</h1>
             <p className="text-gray-600 mt-2">
               Welcome back! Ready to test your knowledge?
             </p>

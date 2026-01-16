@@ -1,66 +1,112 @@
 // src/app/api/student/quizzes/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/lib/mongodb";
-import Quiz from "@/lib/models/Quiz";
-import QuizAttempt from "@/lib/models/QuizAttempt";
-import Class from "@/lib/models/Class";
+import ClassModel from "@/lib/models/Class";
 import { verifyToken } from "@/lib/jwt";
 
-export async function GET(req: NextRequest, { params }: { params: { quizId: string } }) {
+/* ============================
+   GET: Quizzes for a class (student)
+============================ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     await connectDB();
 
+    // ✅ unwrap params (important)
+    const { id: classId } = await params;
+
+    /* --------------------------
+       Auth
+    -------------------------- */
     const token = req.cookies.get("token")?.value;
-    if (!token) return unauthorized();
+    if (!token)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const user = verifyToken(token);
-    if (!user || user.role !== "user") return unauthorized();
+    if (!user || user.role !== "user")
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const quiz = await Quiz.findById(params.quizId);
-    if (!quiz || quiz.status !== "published") {
-      return NextResponse.json({ error: "Quiz not found or not available" }, { status: 404 });
-    }
+    /* --------------------------
+       Lazy load models
+    -------------------------- */
+    const Quiz = (await import("@/lib/models/Quiz")).default;
+    const QuizAttempt = (await import("@/lib/models/QuizAttempt")).default;
 
-    // Check access
-    let hasAccess = quiz.isPublic;
-    if (!hasAccess) {
-      const accessCount = await Class.countDocuments({
-        _id: { $in: quiz.assignedToClasses },
-        students: user.id
-      });
-      hasAccess = accessCount > 0;
-    }
-    if (!hasAccess) return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    /* --------------------------
+       Load class
+    -------------------------- */
+    const cls = await ClassModel.findById(classId)
+      .populate({
+        path: "quizzes",
+        select: "title timeLimit status",
+      })
+      .lean();
 
-    // Find attempt
-    const attempt = await QuizAttempt.findOne({
-      quiz: quiz._id,
-      student: user.id,
-      status: { $in: ["in-progress", "pending"] }
+    if (!cls)
+      return NextResponse.json(
+        { success: false, error: "Class not found" },
+        { status: 404 }
+      );
+
+    /* --------------------------
+       Ensure student is in class
+    -------------------------- */
+    const studentId = user._id || user.id;
+
+    const isStudentInClass = cls.students
+      .map((s: any) => s.toString())
+      .includes(studentId.toString());
+
+    if (!isStudentInClass)
+      return NextResponse.json(
+        { success: false, error: "Not enrolled in this class" },
+        { status: 403 }
+      );
+
+    /* --------------------------
+       Build quizzes with attempt status
+    -------------------------- */
+    const quizzesWithStatus = await Promise.all(
+      (cls.quizzes || []).map(async (quiz: any) => {
+        const attempt = await QuizAttempt.findOne({
+          quiz: quiz._id,
+          student: studentId,
+        }).lean();
+
+        let attemptStatus: "not-started" | "in-progress" | "completed" =
+          "not-started";
+
+        if (attempt) {
+          attemptStatus = attempt.completedAt
+            ? "completed"
+            : "in-progress";
+        }
+
+        return {
+          _id: quiz._id,
+          title: quiz.title,
+          timeLimit: quiz.timeLimit,
+          status: quiz.status,
+          attemptStatus,
+          percentage: attempt?.percentage ?? null,
+        };
+      })
+    );
+
+    /* --------------------------
+       Response
+    -------------------------- */
+    return NextResponse.json({
+      success: true,
+      quizzes: quizzesWithStatus,
     });
-
-    const response = {
-      title: quiz.title,
-      description: quiz.description,
-      timeLimit: quiz.timeLimit,
-      totalPoints: quiz.totalPoints,
-      questions: [], // Don't send questions yet
-      attemptStatus: attempt?.status || "not-started"
-    };
-
-    if (attempt && ["in-progress", "pending"].includes(attempt.status)) {
-      response.questions = quiz.questions.map(q => ({
-        _id: q._id,
-        text: q.text,
-        type: q.type,
-        options: q.options,
-        points: q.points
-      }));
-    }
-
-    return NextResponse.json({ success: true, quiz: response });
-  } catch (error) {
-    console.error("GET quiz details:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  } catch (error: any) {
+    console.error("GET student class quizzes error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }

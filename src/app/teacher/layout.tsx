@@ -40,7 +40,7 @@ export default function TeacherLayout({
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
-      <Sidebar currentPath={pathname} />
+      <Sidebar />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">

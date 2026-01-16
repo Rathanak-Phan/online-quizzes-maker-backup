@@ -1,8 +1,8 @@
 // src/lib/models/Template.ts
-import mongoose, { Schema, Document, model } from "mongoose";
+import mongoose, { Schema, Document, model, Types } from "mongoose";
 
 export interface ITemplate extends Document {
-  teacherId: string;
+  teacherId: Types.ObjectId; // <-- use Types.ObjectId
   name: string;
   category: string;
   questions: number;
@@ -13,7 +13,7 @@ export interface ITemplate extends Document {
 
 const templateSchema = new Schema<ITemplate>(
   {
-    teacherId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    teacherId: { type: Schema.Types.ObjectId, ref: "User", required: true }, // stays the same
     name: { type: String, required: true },
     category: { type: String, required: true },
     questions: { type: Number, required: true },
@@ -22,4 +22,5 @@ const templateSchema = new Schema<ITemplate>(
   { timestamps: true }
 );
 
-export const Template = mongoose.models.Template || model<ITemplate>("Template", templateSchema);
+export const Template =
+  mongoose.models.Template || model<ITemplate>("Template", templateSchema);

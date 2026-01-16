@@ -382,7 +382,7 @@ export default function Sidebar() {
               </div>
               <div>
                 <h2 className="text-xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">
-                  QuizMaster Pro
+                  Online-Quiz
                 </h2>
                 <p className="text-xs text-gray-400 group-hover:text-gray-300 transition">
                   Teacher Dashboard

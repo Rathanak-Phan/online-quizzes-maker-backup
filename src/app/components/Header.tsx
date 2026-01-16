@@ -97,7 +97,7 @@ export default function Header() {
           <Link href="/student/classes" className="hover:text-blue-600">
             Classes
           </Link>
-          <Link href="/student/" className="hover:text-blue-600">
+          <Link href="/student/dashboard" className="hover:text-blue-600">
             Dashboard
           </Link>
         </nav>

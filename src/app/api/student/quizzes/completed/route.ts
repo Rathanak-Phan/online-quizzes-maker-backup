@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     const attempts = await QuizAttempt.find({
       student: user.id,
-      status: { $in: ["submitted", "completed"] }
+      status: { $in: ["submitted", "completed"] },
     })
       .populate("quiz", "title description category")
       .populate("class", "name")
@@ -29,4 +29,9 @@ export async function GET(req: NextRequest) {
     console.error("GET completed quizzes:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
+}
+
+// ✅ Helper function
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }

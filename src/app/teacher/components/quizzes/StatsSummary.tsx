@@ -1,26 +1,27 @@
 // app/teacher/components/quizzes/StatsSummary.tsx
 import { FileText, Users, Trophy } from "lucide-react";
-import type { Quiz } from "@/lib/types/quiz";
 
 interface StatsSummaryProps {
-  quizzes: Quiz[];
+  totalQuizzes: number;
+  activeQuizzes: number;
+  draftQuizzes: number;
+  completedQuizzes: number;
+  categoriesCount: number;
+  averageScore?: number; // optional, if you want
 }
 
-export function StatsSummary({ quizzes = [] }: StatsSummaryProps) {
-  const activeQuizzes = quizzes.filter((q) => q.status === "active").length;
-  const quizzesWithScores = quizzes.filter((q) => q.avgScore !== null);
-  const averageScore =
-    quizzesWithScores.length > 0
-      ? Math.round(
-          quizzesWithScores.reduce((acc, q) => acc + (q.avgScore || 0), 0) /
-            quizzesWithScores.length
-        )
-      : 0;
-
+export function StatsSummary({
+  totalQuizzes,
+  activeQuizzes,
+  draftQuizzes,
+  completedQuizzes,
+  categoriesCount,
+  averageScore = 0,
+}: StatsSummaryProps) {
   const stats = [
     {
       label: "Total Quizzes",
-      value: quizzes.length,
+      value: totalQuizzes,
       icon: FileText,
       color: "blue",
       bgColor: "bg-blue-50",
@@ -37,13 +38,40 @@ export function StatsSummary({ quizzes = [] }: StatsSummaryProps) {
       textColor: "text-green-600",
     },
     {
-      label: "Average Score",
-      value: `${averageScore}%`,
+      label: "Draft Quizzes",
+      value: draftQuizzes,
+      icon: Trophy,
+      color: "yellow",
+      bgColor: "bg-yellow-50",
+      iconColor: "text-yellow-500",
+      textColor: "text-yellow-600",
+    },
+    {
+      label: "Completed Quizzes",
+      value: completedQuizzes,
       icon: Trophy,
       color: "purple",
       bgColor: "bg-purple-50",
       iconColor: "text-purple-500",
       textColor: "text-purple-600",
+    },
+    {
+      label: "Categories",
+      value: categoriesCount,
+      icon: FileText,
+      color: "teal",
+      bgColor: "bg-teal-50",
+      iconColor: "text-teal-500",
+      textColor: "text-teal-600",
+    },
+    {
+      label: "Average Score",
+      value: `${averageScore}%`,
+      icon: Trophy,
+      color: "pink",
+      bgColor: "bg-pink-50",
+      iconColor: "text-pink-500",
+      textColor: "text-pink-600",
     },
   ];
 
