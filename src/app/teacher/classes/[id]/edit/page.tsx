@@ -72,21 +72,30 @@ export default function EditClassPage() {
     setError(null);
 
     try {
+      // Only send fields that can be updated
+      const updateData = {
+        name: formData.name,
+        type: formData.type,
+        subject: formData.subject,
+        schedule: formData.schedule,
+      };
+
       const res = await fetch(`/api/teacher/classes/${classId}`, {
-        method: "PATCH",
+        method: "PUT", // <-- match backend
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(updateData),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to update class");
+        throw new Error(data.error || "Failed to update class");
       }
 
       router.push("/teacher/classes");
       router.refresh();
     } catch (err) {
+      console.error(err);
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSaving(false);

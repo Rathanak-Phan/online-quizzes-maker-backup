@@ -1,98 +1,122 @@
+// src/app/student/classes/[id]/quizzes/page.tsx
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useParams } from "next/navigation";
 import {
-  Clock, CheckCircle, AlertCircle, BookOpen,
-  Search, Filter, Loader2, Trophy,
+  BookOpen,
+  Clock,
+  AlertCircle,
+  Trophy,
+  Loader2,
+  Play,
+  RotateCcw,
 } from "lucide-react";
-import { QuizCardStudent } from "@/components/student/QuizCardStudent";
 
-type QuizStatus = "not-started" | "in-progress" | "pending" | "completed";
+/* ================= TYPES ================= */
 
-interface StudentQuiz {
+type QuizStatus = "not-started" | "in-progress" | "completed";
+
+interface Quiz {
   _id: string;
   title: string;
   description?: string;
   timeLimit: number;
-  totalPoints: number;
-  category: string;
   attemptStatus: QuizStatus;
-  score?: number;
   percentage?: number;
-  submittedAt?: string;
 }
 
+interface Stats {
+  total: number;
+  available: number;
+  pending: number;
+  completed: number;
+}
+
+/* ================= FILTER CONFIG ================= */
+
 const STATUS_FILTERS = [
-  { value: "all", label: "All", icon: BookOpen },
-  { value: "available", label: "Available", icon: Clock },
-  { value: "pending", label: "In Progress", icon: AlertCircle },
-  { value: "completed", label: "Completed", icon: CheckCircle },
+  { label: "All", value: "all", icon: BookOpen },
+  { label: "Available", value: "not-started", icon: Clock },
+  { label: "Pending", value: "in-progress", icon: AlertCircle },
+  { label: "Completed", value: "completed", icon: Trophy },
 ] as const;
 
-export default function StudentQuizzesPage() {
-  const [quizzes, setQuizzes] = useState<StudentQuiz[]>([]);
+/* ================= PAGE ================= */
+
+export default function StudentClassQuizzesPage() {
+  const { id } = useParams();
+
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "available" | "pending" | "completed">("all");
+  const [activeFilter, setActiveFilter] =
+    useState<(typeof STATUS_FILTERS)[number]["value"]>("all");
 
-  const fetchQuizzes = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  /* ================= FETCH ================= */
 
+  const fetchQuizzes = async () => {
     try {
-      const token = getAuthToken();
-      let url = "/api/student/quizzes/available";
+      setLoading(true);
+      setError(null);
 
-      if (activeFilter === "pending") url = "/api/student/quizzes/pending";
-      if (activeFilter === "completed") url = "/api/student/quizzes/completed";
-
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const res = await fetch(`/api/student/classes/${id}/quizzes`, {
+        cache: "no-store",
       });
 
-      if (!res.ok) throw new Error("Failed to load quizzes");
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to load quizzes");
+      }
 
       const data = await res.json();
-
-      const items =
-        activeFilter === "all" ? data.quizzes || [] :
-        activeFilter === "completed" ? data.completed || [] :
-        activeFilter === "pending" ? data.pending || [] :
-        data.quizzes?.filter((q: StudentQuiz) =>
-          ["not-started", "in-progress"].includes(q.attemptStatus)
-        ) || [];
-
-      setQuizzes(items);
+      setQuizzes(data.quizzes || []);
     } catch (err: any) {
-      setError(err.message || "Couldn't load quizzes");
-      setQuizzes([]);
+      setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
-  }, [activeFilter]);
+  };
 
   useEffect(() => {
-    fetchQuizzes();
-  }, [fetchQuizzes]);
+    if (id) fetchQuizzes();
+  }, [id]);
 
-  const stats = useMemo(() => ({
-    total: quizzes.length,
-    available: quizzes.filter(q => ["not-started", "in-progress"].includes(q.attemptStatus)).length,
-    pending: quizzes.filter(q => ["in-progress", "pending"].includes(q.attemptStatus)).length,
-    completed: quizzes.filter(q => q.attemptStatus === "completed").length,
-  }), [quizzes]);
+  /* ================= FILTERING ================= */
+
+  const filteredQuizzes = useMemo(() => {
+    if (activeFilter === "all") return quizzes;
+    return quizzes.filter((q) => q.attemptStatus === activeFilter);
+  }, [quizzes, activeFilter]);
+
+  /* ================= STATS ================= */
+
+  const stats: Stats = useMemo(
+    () => ({
+      total: quizzes.length,
+      available: quizzes.filter(q => q.attemptStatus === "not-started").length,
+      pending: quizzes.filter(q => q.attemptStatus === "in-progress").length,
+      completed: quizzes.filter(q => q.attemptStatus === "completed").length,
+    }),
+    [quizzes]
+  );
+
+  /* ================= UI ================= */
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between gap-6 mb-10">
           <div>
             <h1 className="text-3xl font-bold">My Quizzes</h1>
-            <p className="text-gray-600 mt-1">Manage and track all your assessments</p>
+            <p className="text-gray-600 mt-1">
+              Manage and track all your assessments
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {STATUS_FILTERS.map(f => (
+            {STATUS_FILTERS.map((f) => (
               <button
                 key={f.value}
                 onClick={() => setActiveFilter(f.value)}
@@ -117,48 +141,19 @@ export default function StudentQuizzesPage() {
           <MiniStatCard title="Completed" value={stats.completed} icon={Trophy} color="purple" />
         </div>
 
+        {/* Content */}
         {loading ? (
           <div className="flex justify-center py-24">
             <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
           </div>
         ) : error ? (
-          <div className="text-center py-20">
-            <AlertCircle className="mx-auto text-red-500 mb-4" size={64} />
-            <h3 className="text-xl font-bold mb-3">Something went wrong</h3>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <button
-              onClick={fetchQuizzes}
-              className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
-            >
-              Try Again
-            </button>
-          </div>
-        ) : quizzes.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border shadow-sm">
-            <BookOpen className="mx-auto text-gray-400 mb-6" size={72} />
-            <h3 className="text-2xl font-semibold mb-3">
-              {activeFilter === "all" ? "No quizzes yet" : `No ${activeFilter} quizzes`}
-            </h3>
-            <p className="text-gray-600 max-w-lg mx-auto">
-              {activeFilter === "all"
-                ? "Your teacher will assign quizzes soon. Stay tuned!"
-                : "Come back later when you have some activity here."}
-            </p>
-          </div>
+          <ErrorState error={error} onRetry={fetchQuizzes} />
+        ) : filteredQuizzes.length === 0 ? (
+          <EmptyState activeFilter={activeFilter} />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {quizzes.map(quiz => (
-              <QuizCardStudent
-                key={quiz._id}
-                quiz={quiz}
-                onAction={
-                  quiz.attemptStatus === "not-started"
-                    ? () => window.location.href = `/student/quizzes/${quiz._id}/start`
-                    : quiz.attemptStatus === "in-progress"
-                    ? () => window.location.href = `/student/quizzes/${quiz._id}/attempt`
-                    : undefined
-                }
-              />
+            {filteredQuizzes.map((quiz) => (
+              <QuizCardStudent key={quiz._id} quiz={quiz} />
             ))}
           </div>
         )}
@@ -166,6 +161,8 @@ export default function StudentQuizzesPage() {
     </div>
   );
 }
+
+/* ================= COMPONENTS ================= */
 
 function MiniStatCard({ title, value, icon: Icon, color }: any) {
   return (
@@ -175,6 +172,83 @@ function MiniStatCard({ title, value, icon: Icon, color }: any) {
       </div>
       <p className="text-sm text-gray-600">{title}</p>
       <p className="text-2xl font-bold mt-1">{value}</p>
+    </div>
+  );
+}
+
+function QuizCardStudent({ quiz }: { quiz: Quiz }) {
+  return (
+    <div className="bg-white border rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+      <h3 className="text-xl font-semibold mb-2">{quiz.title}</h3>
+
+      <p className="text-gray-600 mb-4">
+        Time limit: {quiz.timeLimit} minutes
+      </p>
+
+      {quiz.attemptStatus === "completed" && (
+        <p className="text-green-600 font-medium mb-3">
+          Score: {quiz.percentage}%
+        </p>
+      )}
+
+      <button
+        onClick={() =>
+          (window.location.href =
+            quiz.attemptStatus === "not-started"
+              ? `/student/quizzes/${quiz._id}/start`
+              : quiz.attemptStatus === "in-progress"
+              ? `/student/quizzes/${quiz._id}/attempt`
+              : `/student/quizzes/${quiz._id}/result`)
+        }
+        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-white ${
+          quiz.attemptStatus === "not-started"
+            ? "bg-green-600 hover:bg-green-700"
+            : quiz.attemptStatus === "in-progress"
+            ? "bg-yellow-500 hover:bg-yellow-600"
+            : "bg-blue-600 hover:bg-blue-700"
+        }`}
+      >
+        {quiz.attemptStatus === "not-started" && <Play size={18} />}
+        {quiz.attemptStatus === "in-progress" && <RotateCcw size={18} />}
+        {quiz.attemptStatus === "completed" && <Trophy size={18} />}
+        {quiz.attemptStatus === "not-started"
+          ? "Start Quiz"
+          : quiz.attemptStatus === "in-progress"
+          ? "Resume Quiz"
+          : "View Result"}
+      </button>
+    </div>
+  );
+}
+
+function ErrorState({ error, onRetry }: any) {
+  return (
+    <div className="text-center py-20">
+      <AlertCircle className="mx-auto text-red-500 mb-4" size={64} />
+      <h3 className="text-xl font-bold mb-3">Something went wrong</h3>
+      <p className="text-gray-600 mb-6">{error}</p>
+      <button
+        onClick={onRetry}
+        className="px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
+      >
+        Try Again
+      </button>
+    </div>
+  );
+}
+
+function EmptyState({ activeFilter }: { activeFilter: string }) {
+  return (
+    <div className="bg-white rounded-2xl p-12 text-center border shadow-sm">
+      <BookOpen className="mx-auto text-gray-400 mb-6" size={72} />
+      <h3 className="text-2xl font-semibold mb-3">
+        {activeFilter === "all"
+          ? "No quizzes yet"
+          : `No ${activeFilter.replace("-", " ")} quizzes`}
+      </h3>
+      <p className="text-gray-600 max-w-lg mx-auto">
+        Your teacher will assign quizzes soon. Stay tuned!
+      </p>
     </div>
   );
 }

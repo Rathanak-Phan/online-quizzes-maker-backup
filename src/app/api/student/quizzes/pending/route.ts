@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
     const attempts = await QuizAttempt.find({
       student: user.id,
-      status: { $in: ["not-started", "in-progress", "pending"] }
+      status: { $in: ["not-started", "in-progress", "pending"] },
     })
       .populate("quiz", "title description timeLimit category")
       .populate("class", "name")
@@ -29,4 +29,9 @@ export async function GET(req: NextRequest) {
     console.error("GET pending quizzes:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
+}
+
+// ✅ Helper function to fix TS error
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }

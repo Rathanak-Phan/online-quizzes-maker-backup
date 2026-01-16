@@ -25,8 +25,10 @@ import type { Quiz } from "@/lib/types/quiz";
 
 // Add this helper function to get auth token
 function getAuthToken(): string | null {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+  if (typeof window !== "undefined") {
+    return (
+      localStorage.getItem("authToken") || sessionStorage.getItem("authToken")
+    );
   }
   return null;
 }
@@ -73,7 +75,7 @@ export default function QuizzesPage() {
       params.set("sort", sortBy);
 
       const token = getAuthToken();
-      
+
       console.log("Fetching quizzes with params:", params.toString());
       console.log("Token present:", !!token);
 
@@ -88,46 +90,50 @@ export default function QuizzesPage() {
       );
 
       console.log("Response status:", response.status);
-      
+
       let errorData;
       try {
         errorData = await response.json();
       } catch (jsonError) {
-        errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        errorData = {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        };
       }
 
       if (!response.ok) {
         // Improved error handling
-        const errorMessage = errorData?.error || 
-                            errorData?.message || 
-                            `Failed to fetch quizzes (Status: ${response.status})`;
-        
+        const errorMessage =
+          errorData?.error ||
+          errorData?.message ||
+          `Failed to fetch quizzes (Status: ${response.status})`;
+
         console.error("API Error:", {
           status: response.status,
           errorData,
-          errorMessage
+          errorMessage,
         });
-        
+
         throw new Error(errorMessage);
       }
 
       // Success case
       const data = errorData; // errorData contains the successful response data
-      console.log("Success data:", { 
+      console.log("Success data:", {
         quizzesCount: data.quizzes?.length,
-        source: data.source 
+        source: data.source,
       });
-      
+
       setQuizzes(data.quizzes || []);
 
-      // Extract categories
+      // Extract categories safely
       const uniqueCategories = Array.from(
         new Set(
-          data.quizzes?.map((q: Quiz) => q.category).filter(Boolean) || []
+          data.quizzes
+            ?.map((q: Quiz) => q.category)
+            .filter((c: unknown): c is string => !!c) || []
         )
-      );
+      ) as string[]; // <-- cast to string[] here
       setCategories(uniqueCategories);
-      
     } catch (err: any) {
       console.error("Fetch error:", err);
       setError(err.message || "Failed to load quizzes");
@@ -163,7 +169,9 @@ export default function QuizzesPage() {
         } catch {
           errorData = { message: `HTTP ${response.status}` };
         }
-        throw new Error(errorData.error || errorData.message || "Failed to delete quiz");
+        throw new Error(
+          errorData.error || errorData.message || "Failed to delete quiz"
+        );
       }
 
       setQuizzes((prev) => prev.filter((q) => q._id !== quizId));
@@ -194,7 +202,9 @@ export default function QuizzesPage() {
         } catch {
           errorData = { message: `HTTP ${response.status}` };
         }
-        throw new Error(errorData.error || errorData.message || "Failed to duplicate quiz");
+        throw new Error(
+          errorData.error || errorData.message || "Failed to duplicate quiz"
+        );
       }
 
       const data = await response.json();
@@ -208,35 +218,48 @@ export default function QuizzesPage() {
   // Filter and sort quizzes
   const filteredQuizzes = useMemo(() => {
     let filtered = [...quizzes];
-    
+
     // Sort if needed
     switch (sortBy) {
       case "title":
         filtered.sort((a, b) => a.title.localeCompare(b.title));
         break;
       case "lastUsed":
-        filtered.sort((a, b) => 
-          new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
+        filtered.sort(
+          (a, b) =>
+            new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime()
         );
         break;
       default: // "newest"
-        filtered.sort((a, b) => 
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        filtered.sort(
+          (a, b) =>
+            new Date(b.lastUsed || new Date()).getTime() -
+            new Date(a.lastUsed || new Date()).getTime()
         );
+
         break;
     }
-    
+
     return filtered;
   }, [quizzes, sortBy]);
 
   // Calculate stats
   const stats = useMemo(() => {
     const totalQuizzes = quizzes.length;
-    const activeQuizzes = quizzes.filter(q => q.status === 'published').length;
-    const draftQuizzes = quizzes.filter(q => q.status === 'draft').length;
+    const activeQuizzes = quizzes.filter((q) => q.status === "active").length;
+    const draftQuizzes = quizzes.filter((q) => q.status === "draft").length;
+    const completedQuizzes = quizzes.filter(
+      (q) => q.status === "completed"
+    ).length;
     const categoriesCount = categories.length;
-    
-    return { totalQuizzes, activeQuizzes, draftQuizzes, categoriesCount };
+
+    return {
+      totalQuizzes,
+      activeQuizzes,
+      draftQuizzes,
+      completedQuizzes,
+      categoriesCount,
+    };
   }, [quizzes, categories]);
 
   // Error state component
@@ -336,6 +359,7 @@ export default function QuizzesPage() {
           totalQuizzes={stats.totalQuizzes}
           activeQuizzes={stats.activeQuizzes}
           draftQuizzes={stats.draftQuizzes}
+          completedQuizzes={stats.completedQuizzes} // <-- add this if needed
           categoriesCount={stats.categoriesCount}
         />
 

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock, AlertCircle, Loader2 } from "lucide-react";
 
 interface Question {
+  _id: string;
   text: string;
   type: "multiple" | "truefalse" | "shortanswer";
   options: string[];
@@ -111,7 +112,7 @@ export default function QuizPreviewPage() {
         <div className="space-y-10">
           {quiz.questions.map((q: Question, index: number) => (
             <div
-              key={q._id || index}
+              key={q._id || index} // ✅ Now _id exists
               className="bg-white rounded-xl shadow-sm p-6 border"
             >
               <div className="flex items-start gap-4 mb-4">
@@ -123,7 +124,6 @@ export default function QuizPreviewPage() {
                     {q.text}
                   </h3>
 
-                  {/* Different display based on type */}
                   {q.type === "multiple" && (
                     <div className="space-y-3 mt-4">
                       {q.options.map((opt: string, i: number) => (

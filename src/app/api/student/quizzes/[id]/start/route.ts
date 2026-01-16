@@ -7,8 +7,10 @@ import connectDB from "@/lib/mongodb";
 import { forbidden, unauthorized } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 
-
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params;
 
   await connectDB();
@@ -21,6 +23,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Check access (public, class member, etc.)
   const quiz = await Quiz.findById(id);
+
+  // ✅ Fix: canAccessQuiz now returns boolean
   if (!quiz || !canAccessQuiz(quiz, user)) return forbidden();
 
   // Find or create attempt
@@ -32,13 +36,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       student: user._id,
       status: "in-progress",
       startedAt: new Date(),
-      totalPoints: quiz.questions.reduce((sum: number, q: any) => sum + (q.points || 1), 0),
+      totalPoints: quiz.questions.reduce(
+        (sum: number, q: any) => sum + (q.points || 1),
+        0
+      ),
     });
   }
 
   return NextResponse.json({ success: true, attempt });
 }
 
-function canAccessQuiz(quiz: any, user: JwtPayload) {
-    throw new Error("Function not implemented.");
+// ✅ Keep your logic: this is a placeholder for your access rules
+function canAccessQuiz(quiz: any, user: JwtPayload): boolean {
+  // TODO: implement real logic (public quiz, class member, etc.)
+  return true; // placeholder: allow all quizzes for now
 }

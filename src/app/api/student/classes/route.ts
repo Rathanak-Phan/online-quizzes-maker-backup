@@ -4,15 +4,14 @@ import connectDB from "@/lib/mongodb";
 import ClassModel from "@/lib/models/Class";
 import { verifyToken } from "@/lib/jwt";
 
-/* ======================
-   GET: Student's classes
-====================== */
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
 
-    // ✅ Get token from cookie (SAME AS TEACHER)
-    const token = req.cookies.get("token")?.value;
+    const token =
+      req.headers.get("authorization")?.replace("Bearer ", "") ||
+      req.cookies.get("token")?.value;
+
     if (!token)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -20,25 +19,40 @@ export async function GET(req: NextRequest) {
     if (!user || user.role !== "user")
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    const search = req.nextUrl.searchParams.get("search") || "";
+    const search = req.nextUrl.searchParams.get("search");
 
-    // ✅ Find classes where student is enrolled
-    const classes = await ClassModel.find({
-      students: user._id,
-      ...(search && {
-        $or: [
-          { name: { $regex: search, $options: "i" } },
-          { subject: { $regex: search, $options: "i" } },
-        ],
-      }),
-    })
-      .populate("teacher", "name email")
-      .sort({ createdAt: -1 })
+    const query: any = {
+      students: user._id || user.id, // 🔥 THIS IS THE MAGIC
+    };
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { subject: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const classes = await ClassModel.find(query)
+      .populate("teacher", "name")
       .lean();
 
-    return NextResponse.json({ classes });
+    const formatted = classes.map(cls => ({
+      _id: cls._id,
+      name: cls.name,
+      subject: cls.subject,
+      teacher: cls.teacher,
+      studentCount: cls.students.length,
+      quizCount: cls.quizzes.length,
+      code: cls.code,
+      createdAt: cls.createdAt,
+    }));
+
+    return NextResponse.json({ success: true, classes: formatted });
   } catch (error: any) {
     console.error("Student classes error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
   }
 }

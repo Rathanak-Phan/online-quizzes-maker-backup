@@ -29,7 +29,9 @@ interface Class {
 
 function getAuthToken(): string | null {
   if (typeof window !== "undefined") {
-    return localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
+    return (
+      localStorage.getItem("authToken") || sessionStorage.getItem("authToken")
+    );
   }
   return null;
 }
@@ -75,9 +77,11 @@ export default function StudentClassesPage() {
     fetchClasses();
   }, [fetchClasses]);
 
-  const filteredClasses = classes.filter((cls) =>
-    cls.name.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
-    (cls.subject?.toLowerCase().includes(searchTerm.toLowerCase().trim()) ?? false)
+  const filteredClasses = classes.filter(
+    (cls) =>
+      cls.name.toLowerCase().includes(searchTerm.toLowerCase().trim()) ||
+      (cls.subject?.toLowerCase().includes(searchTerm.toLowerCase().trim()) ??
+        false)
   );
 
   if (error && classes.length === 0) {
@@ -108,11 +112,16 @@ export default function StudentClassesPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">My Classes</h1>
-            <p className="text-gray-600 mt-1">All classes you're currently enrolled in</p>
+            <p className="text-gray-600 mt-1">
+              All classes you're currently enrolled in
+            </p>
           </div>
 
           <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
             <input
               type="text"
               placeholder="Search by name or subject..."
@@ -133,7 +142,11 @@ export default function StudentClassesPage() {
         ) : filteredClasses.length === 0 ? (
           <EmptyState
             icon={<Users size={48} />}
-            title={searchTerm ? "No matching classes found" : "You're not enrolled in any classes yet"}
+            title={
+              searchTerm
+                ? "No matching classes found"
+                : "You're not enrolled in any classes yet"
+            }
             description={
               searchTerm
                 ? "Try different keywords or clear the search"
@@ -152,13 +165,9 @@ export default function StudentClassesPage() {
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredClasses.map((cls) => (
-              <ClassCard
-                key={cls._id}
-                classData={cls}
-                onClick={() => {} /* optional: could open modal or something */}
-              />
-            ))}
+            {/* {filteredClasses.map((cls) => (
+              // <ClassCard key={cls._id} classData={cls} onClick={() => {}} />
+            ))} */}
           </div>
         )}
 
